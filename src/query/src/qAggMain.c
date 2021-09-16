@@ -4413,7 +4413,7 @@ typedef struct {
   int32_t pos;
   double sum;
   int32_t numPoints;
-  int64_t* points;
+  double* points;
 } SMovingAvgInfo;
 
 static bool mavg_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
@@ -4422,10 +4422,10 @@ static bool mavg_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResIn
   }
 
   SMovingAvgInfo* mavgInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  mavgInfo->pos = -1;
+  mavgInfo->pos = 0;
   mavgInfo->sum = 0;
   mavgInfo->numPoints = (int32_t)pCtx->param[0].i64;
-  mavgInfo->points = (int64_t*)((char*)mavgInfo + sizeof(mavgInfo));
+  mavgInfo->points = (double*)((char*)mavgInfo + sizeof(mavgInfo));
   return true;
 }
 
@@ -4445,96 +4445,169 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
   switch (pCtx->inputType) {
     case TSDB_DATA_TYPE_INT: {
       int32_t *pData = (int32_t *)data;
-      int32_t *pOutput = (int32_t *)pCtx->pOutput;
+      double *pOutput = (double *)pCtx->pOutput;
       for (; i < pCtx->size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
 
-        pCumSumInfo->cumSum += pData[i];
-        *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
-        SET_DOUBLE_VAL(pOutput, pCumSumInfo->cumSum);
+        if (mavgInfo->pos < mavgInfo->numPoints - 1) {
+          mavgInfo->points[mavgInfo->pos] = (double)pData[i];
+          mavgInfo->sum += pData[i];
+        } else {
+          int32_t pos = mavgInfo->pos % mavgInfo->numPoints;
+          if (mavgInfo->pos != mavgInfo->numPoints -1) {
+            mavgInfo->sum = mavgInfo->sum + (double)pData[i] - mavgInfo->points[pos];
+          } else {
+            mavgInfo->sum += (double)pData[i];
+          }
 
-        ++notNullElems;
-        pOutput += 1;
-        pTimestamp += 1;
+          mavgInfo->points[pos] = pData[i];
+
+          *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
+          SET_DOUBLE_VAL(pOutput, mavgInfo->sum / mavgInfo->numPoints)
+          ++notNullElems;
+          pOutput += 1;
+          pTimestamp += 1;
+        }
+
+        ++mavgInfo->pos;
       }
       break;
     }
 
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t *pData = (int64_t *)data;
-      int64_t *pOutput = (int64_t *)pCtx->pOutput;
+      double *pOutput = (double *)pCtx->pOutput;
       for (; i < pCtx->size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
 
-        pCumSumInfo->cumSum += pData[i];
-        *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
-        SET_DOUBLE_VAL(pOutput, pCumSumInfo->cumSum);
+        if (mavgInfo->pos < mavgInfo->numPoints - 1) {
+          mavgInfo->points[mavgInfo->pos] = (double)pData[i];
+          mavgInfo->sum += pData[i];
+        } else {
+          int32_t pos = mavgInfo->pos % mavgInfo->numPoints;
+          if (mavgInfo->pos != mavgInfo->numPoints -1) {
+            mavgInfo->sum = mavgInfo->sum + (double)pData[i] - mavgInfo->points[pos];
+          } else {
+            mavgInfo->sum += (double)pData[i];
+          }
 
-        ++notNullElems;
-        pOutput += 1;
-        pTimestamp += 1;
+          mavgInfo->points[pos] = pData[i];
+
+          *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
+          SET_DOUBLE_VAL(pOutput, mavgInfo->sum / mavgInfo->numPoints)
+          ++notNullElems;
+          pOutput += 1;
+          pTimestamp += 1;
+        }
+
+        ++mavgInfo->pos;
       }
       break;
     }
 
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t *pData = (int8_t *)data;
-      int8_t *pOutput = (int8_t *)pCtx->pOutput;
+      double *pOutput = (double *)pCtx->pOutput;
       for (; i < pCtx->size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
 
-        pCumSumInfo->cumSum += pData[i];
-        *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
-        SET_DOUBLE_VAL(pOutput, pCumSumInfo->cumSum);
+        if (mavgInfo->pos < mavgInfo->numPoints - 1) {
+          mavgInfo->points[mavgInfo->pos] = (double)pData[i];
+          mavgInfo->sum += pData[i];
+        } else {
+          int32_t pos = mavgInfo->pos % mavgInfo->numPoints;
+          if (mavgInfo->pos != mavgInfo->numPoints -1) {
+            mavgInfo->sum = mavgInfo->sum + (double)pData[i] - mavgInfo->points[pos];
+          } else {
+            mavgInfo->sum += (double)pData[i];
+          }
 
-        ++notNullElems;
-        pOutput += 1;
-        pTimestamp += 1;
+          mavgInfo->points[pos] = pData[i];
+
+          *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
+          SET_DOUBLE_VAL(pOutput, mavgInfo->sum / mavgInfo->numPoints)
+          ++notNullElems;
+          pOutput += 1;
+          pTimestamp += 1;
+        }
+
+        ++mavgInfo->pos;
       }
+
       break;
     }
 
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t *pData = (int16_t *)data;
-      int16_t *pOutput = (int16_t *)pCtx->pOutput;
+      double *pOutput = (double *)pCtx->pOutput;
       for (; i < pCtx->size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
 
-        pCumSumInfo->cumSum += pData[i];
-        *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
-        SET_DOUBLE_VAL(pOutput, pCumSumInfo->cumSum);
+        if (mavgInfo->pos < mavgInfo->numPoints - 1) {
+          mavgInfo->points[mavgInfo->pos] = (double)pData[i];
+          mavgInfo->sum += pData[i];
+        } else {
+          int32_t pos = mavgInfo->pos % mavgInfo->numPoints;
+          if (mavgInfo->pos != mavgInfo->numPoints -1) {
+            mavgInfo->sum = mavgInfo->sum + (double)pData[i] - mavgInfo->points[pos];
+          } else {
+            mavgInfo->sum += (double)pData[i];
+          }
 
-        ++notNullElems;
-        pOutput += 1;
-        pTimestamp += 1;
+          mavgInfo->points[pos] = pData[i];
+
+          *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
+          SET_DOUBLE_VAL(pOutput, mavgInfo->sum / mavgInfo->numPoints)
+          ++notNullElems;
+          pOutput += 1;
+          pTimestamp += 1;
+        }
+
+        ++mavgInfo->pos;
       }
+
       break;
     }
 
     case TSDB_DATA_TYPE_FLOAT: {
       float *pData = (float *)data;
-      float *pOutput = (float *)pCtx->pOutput;
+      double *pOutput = (double *)pCtx->pOutput;
       for (; i < pCtx->size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
 
-        pCumSumInfo->cumSum += pData[i];
-        *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
-        SET_DOUBLE_VAL(pOutput, pCumSumInfo->cumSum);
+        if (mavgInfo->pos < mavgInfo->numPoints - 1) {
+          mavgInfo->points[mavgInfo->pos] = (double)pData[i];
+          mavgInfo->sum += pData[i];
+        } else {
+          int32_t pos = mavgInfo->pos % mavgInfo->numPoints;
+          if (mavgInfo->pos != mavgInfo->numPoints -1) {
+            mavgInfo->sum = mavgInfo->sum + (double)pData[i] - mavgInfo->points[pos];
+          } else {
+            mavgInfo->sum += (double)pData[i];
+          }
 
-        ++notNullElems;
-        pOutput += 1;
-        pTimestamp += 1;
+          mavgInfo->points[pos] = pData[i];
+
+          *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
+          SET_DOUBLE_VAL(pOutput, mavgInfo->sum / mavgInfo->numPoints)
+          ++notNullElems;
+          pOutput += 1;
+          pTimestamp += 1;
+        }
+
+        ++mavgInfo->pos;
       }
+
       break;
     }
 
@@ -4546,16 +4619,31 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
           continue;
         }
 
-        pCumSumInfo->cumSum += pData[i];
-        *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
-        SET_DOUBLE_VAL(pOutput, pCumSumInfo->cumSum);
+        if (mavgInfo->pos < mavgInfo->numPoints - 1) {
+          mavgInfo->points[mavgInfo->pos] = (double)pData[i];
+          mavgInfo->sum += pData[i];
+        } else {
+          int32_t pos = mavgInfo->pos % mavgInfo->numPoints;
+          if (mavgInfo->pos != mavgInfo->numPoints - 1) {
+            mavgInfo->sum = mavgInfo->sum + (double)pData[i] - mavgInfo->points[pos];
+          } else {
+            mavgInfo->sum += (double)pData[i];
+          }
 
-        ++notNullElems;
-        pOutput += 1;
-        pTimestamp += 1;
+          mavgInfo->points[pos] = pData[i];
+
+          *pTimestamp = (tsList != NULL) ? tsList[i] : 0;
+          SET_DOUBLE_VAL(pOutput, mavgInfo->sum / mavgInfo->numPoints)
+          ++notNullElems;
+          pOutput += 1;
+          pTimestamp += 1;
+        }
+
+        ++mavgInfo->pos;
       }
       break;
     }
+
     default:
       qError("error input type");
   }
@@ -5011,6 +5099,18 @@ SAggFunctionInfo aAggs[] = {{
         TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SELECTIVITY,
         csum_function_setup,
         csum_function,
+        doFinalizer,
+        noop1,
+        dataBlockRequired,
+    },
+    {
+        // 35
+        "mavg",
+        TSDB_FUNC_MAVG,
+        TSDB_FUNC_INVALID_ID,
+        TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SELECTIVITY,
+        mavg_function_setup,
+        mavg_function,
         doFinalizer,
         noop1,
         dataBlockRequired,
